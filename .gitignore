@@ -1,0 +1,15 @@
+# Rust/Cargo
+target/
+**/*.rs.bk
+Cargo.lock
+
+# HLX Binaries
+studio
+studio.o
+studio_test.txt
+
+# Large binary artifacts
+*.rlib
+*.so
+*.a
+*.exe
