@@ -1,0 +1,98 @@
+program hlx_studio {
+    // --- SDL Intrinsics Wrapper ---
+    // These must match the lower-cased names in lower.rs/lib.rs
+
+    // --- Basic UI Primitives ---
+    
+    fn draw_rect(ren: int, x: int, y: int, w: int, h: int, r: int, g: int, b: int) -> int {
+        sdl_set_color(ren, r, g, b, 255);
+        // Fill rect using lines (until we have SDL_RenderFillRect intrinsic properly mapped)
+        let i: int = 0;
+        loop (i < h, 10000) {
+            sdl_render_draw_line(ren, x, y + i, x + w, y + i);
+            i = i + 1;
+        }
+        return 0;
+    }
+
+    fn draw_outline(ren: int, x: int, y: int, w: int, h: int, r: int, g: int, b: int) -> int {
+        sdl_set_color(ren, r, g, b, 255);
+        sdl_render_draw_line(ren, x, y, x + w, y);         // Top
+        sdl_render_draw_line(ren, x, y + h, x + w, y + h); // Bottom
+        sdl_render_draw_line(ren, x, y, x, y + h);         // Left
+        sdl_render_draw_line(ren, x + w, y, x + w, y + h); // Right
+        return 0;
+    }
+
+    // --- Main Loop ---
+
+    fn main() -> int {
+        print("Starting HLX Dev Studio...");
+
+        // Init SDL
+        if (sdl_init(32) != 0) { // SDL_INIT_VIDEO = 32
+            print("Failed to init SDL");
+            return 1;
+        }
+
+        // Create Window (1280x720)
+        let win: int = sdl_create_window("HLX Dev Studio", 536805376, 536805376, 1280, 720, 4); // SHOWN
+        // if (win == 0) {
+        //    print("Failed to create window");
+        //    return 1;
+        // }
+
+        // Create Renderer
+        let ren: int = sdl_create_renderer(win, -1, 6); // ACCELERATED | PRESENTVSYNC
+        // if (ren == 0) {
+        //    print("Failed to create renderer");
+        //    return 1;
+        // }
+
+        let running: int = 1;
+        let event_buf: Array<int> = alloc_array(64); // Buffer for SDL_Event
+
+        // Theme Colors
+        let bg_r: int = 30;
+        let bg_g: int = 30;
+        let bg_b: int = 30;
+
+        let sidebar_w: int = 250;
+        let sidebar_r: int = 40;
+        let sidebar_g: int = 40;
+        let sidebar_b: int = 40;
+
+        loop (running == 1, 1000000) {
+            // Poll Events
+            loop (sdl_poll(event_buf) != 0, 100) {
+                let type: int = event_buf[0];
+                if (type == 256) { // SDL_QUIT
+                    running = 0;
+                }
+            }
+
+            // Draw Background
+            sdl_set_color(ren, bg_r, bg_g, bg_b, 255);
+            sdl_clear(ren);
+
+            // Draw Sidebar
+            draw_rect(ren, 0, 0, sidebar_w, 720, sidebar_r, sidebar_g, sidebar_b);
+            draw_outline(ren, 0, 0, sidebar_w, 720, 60, 60, 60);
+
+            // Draw "Editor" Area (placeholder)
+            draw_rect(ren, sidebar_w + 10, 10, 1280 - sidebar_w - 20, 700, 20, 20, 20);
+            draw_outline(ren, sidebar_w + 10, 10, 1280 - sidebar_w - 20, 700, 60, 60, 60);
+
+            // Present
+            sdl_present(ren);
+            
+            // Cap framerate (approx 60 FPS)
+            sdl_delay(16);
+        }
+
+        sdl_destroy_window(win);
+        sdl_quit();
+        print("Studio exited cleanly.");
+        return 0;
+    }
+}

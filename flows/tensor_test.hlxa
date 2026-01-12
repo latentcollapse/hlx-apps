@@ -1,0 +1,38 @@
+program workflow {
+
+fn main(input) {
+    let matA_t = tensor_new_2d(2, 2);
+    // Set (0, 0) = 1
+    let matA_data = matA_t[2];
+    matA_data[0] = 1;
+    // Set (0, 1) = 0
+    let matA_data = matA_t[2];
+    matA_data[1] = 0;
+    // Set (1, 0) = 0
+    let matA_data = matA_t[2];
+    matA_data[2] = 0;
+    // Set (1, 1) = 1
+    let matA_data = matA_t[2];
+    matA_data[3] = 1;
+    let matA_out = matA_t;
+    let matB_t = tensor_new_2d(2, 2);
+    // Set (0, 0) = 2
+    let matB_data = matB_t[2];
+    matB_data[0] = 2;
+    // Set (0, 1) = 2
+    let matB_data = matB_t[2];
+    matB_data[1] = 2;
+    // Set (1, 0) = 2
+    let matB_data = matB_t[2];
+    matB_data[2] = 2;
+    // Set (1, 1) = 2
+    let matB_data = matB_t[2];
+    matB_data[3] = 2;
+    let matB_out = matB_t;
+    let matmul_out = tensor_matmul(matA_out, matB_out);
+    print(matmul_out);
+    let printer_out = matmul_out;
+    return printer_out;
+}
+
+}

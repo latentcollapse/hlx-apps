@@ -1,0 +1,8 @@
+program test {
+    fn main() -> int {
+        let f: float = 10.5;
+        let i: int = to_int(f);
+        if (i <= 10) { print("OK"); }
+        return 0;
+    }
+}

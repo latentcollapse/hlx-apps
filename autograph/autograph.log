@@ -1,0 +1,20 @@
+   Compiling hlx_compiler v0.1.0 (/home/matt/hlx-compiler/hlx/hlx_compiler)
+   Compiling hlx_runtime v0.1.0 (/home/matt/hlx-compiler/hlx/hlx_runtime)
+   Compiling autograph v0.1.0 (/home/matt/hlx-apps/autograph)
+    Finished `release` profile [optimized] target(s) in 5.27s
+warning: the following packages contain code that will be rejected by a future version of Rust: xcap v0.0.12
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `target/release/autograph`
+[2m2026-01-10T10:04:53.624538Z[0m [32m INFO[0m [2mautograph[0m[2m:[0m Autograph server listening on 0.0.0.0:3000
+[2m2026-01-10T10:04:58.277648Z[0m [32m INFO[0m [2mautograph[0m[2m:[0m Deploying flow: tensor_test
+[2m2026-01-10T10:04:58.277874Z[0m [32m INFO[0m [2mautograph[0m[2m:[0m Flow saved to ../flows/tensor_test.hlxa
+[2m2026-01-10T10:04:58.283936Z[0m [32m INFO[0m [2mautograph[0m[2m:[0m Running flow: tensor_test
+
+=== EXECUTION CRASH DUMP ===
+Last 50 instructions executed:
+  PC 0000: Constant { out: 1, val: Integer(2) }
+  PC 0001: Constant { out: 2, val: Integer(2) }
+  PC 0002: Call { out: 3, func: "__hlx_tensor_create", args: [1, 2] }
+============================
+
+[2m2026-01-10T10:04:58.492714Z[0m [31mERROR[0m [2mautograph[0m[2m:[0m Flow execution failed: Runtime error: ValidationFail { message: "Unknown function: __hlx_tensor_create" }

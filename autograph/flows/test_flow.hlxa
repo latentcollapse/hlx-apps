@@ -1,0 +1,10 @@
+program workflow {
+
+fn main(input) {
+    let start_out = input;
+    print(start_out);
+    let printer_out = start_out;
+    return printer_out;
+}
+
+}

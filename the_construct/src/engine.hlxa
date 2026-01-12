@@ -1,0 +1,64 @@
+program engine {
+    // Phase 2: The Void
+    // A procedural renderer that manages the window state
+
+    fn init_renderer(window) {
+        // Create SDL Renderer
+        // -1 = initialize first supporting driver
+        // 6 = SDL_RENDERER_ACCELERATED (2) | SDL_RENDERER_PRESENTVSYNC (4)
+        let renderer = SDL_CreateRenderer(window, -1, 6);
+        if (renderer == 0) {
+            print("Failed to create renderer!");
+            return 0;
+        }
+        return renderer;
+    }
+
+    fn calculate_void_color(frame) {
+        // Use NATIVE MATH builtins! 
+        // No imports, no manual Taylor series approximations.
+        // Just raw, native speed.
+        
+        let t = to_float(frame) * 0.05;
+
+        // r = sin wave 0..255
+        let r_val = (sin(t) + 1.0) * 127.5;
+        let r = floor(r_val); // Native floor!
+
+        // g = cos wave 0..255 (offset)
+        let g_val = (cos(t * 0.7) + 1.0) * 127.5;
+        let g = floor(g_val);
+
+        // b = slow pulse
+        let b_val = (sin(t * 0.3) + 1.0) * 127.5;
+        let b = floor(b_val);
+
+        return [to_int(r), to_int(g), to_int(b)];
+    }
+
+    fn render_frame(renderer, frame) {
+        // 1. Calculate procedural color
+        let color = calculate_void_color(frame);
+        let r = color[0];
+        let g = color[1];
+        let b = color[2];
+
+        // 2. Clear Screen to Void Color
+        SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+        SDL_RenderClear(renderer);
+
+        // 3. Swap Buffers
+        SDL_RenderPresent(renderer);
+        
+        // Debug output every 60 frames
+        if (frame % 60 == 0) {
+            let msg = "Void Pulse: " + to_string(r) + "," + to_string(g) + "," + to_string(b);
+            print(msg);
+        }
+    }
+
+    // Helper to convert int to float since we don't have implicit casting yet
+    fn to_float(i) {
+        return i + 0.0;
+    }
+}

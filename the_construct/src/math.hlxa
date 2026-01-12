@@ -1,0 +1,59 @@
+// Vector Math Library for HLX
+// Uses Arrays as Vectors: [x, y, z]
+
+fn vec3_create(x, y, z) {
+    let v = [to_float(x), to_float(y), to_float(z)];
+    return v;
+}
+
+fn vec3_rotate_y(v, angle) {
+    let x = v[0];
+    let y = v[1];
+    let z = v[2];
+    
+    let cos_a = cos(angle);
+    let sin_a = sin(angle);
+    
+    let nx = (x * cos_a) - (z * sin_a);
+    let nz = (x * sin_a) + (z * cos_a);
+    
+    let res = [nx, y, nz];
+    return res;
+}
+
+fn vec3_rotate_x(v, angle) {
+    let x = v[0];
+    let y = v[1];
+    let z = v[2];
+    
+    let cos_a = cos(angle);
+    let sin_a = sin(angle);
+    
+    let ny = (y * cos_a) - (z * sin_a);
+    let nz = (y * sin_a) + (z * cos_a);
+    
+    let res = [x, ny, nz];
+    return res;
+}
+
+fn project(v, width, height) {
+    let x = v[0];
+    let y = v[1];
+    let z = v[2];
+    
+    // Simple perspective projection
+    let fov = 200.0;
+    let dist = 4.0;
+    let z_factor = 1.0 / (dist - z);
+    
+    let px = (x * fov * z_factor) + (to_float(width) / 2.0);
+    let py = (y * fov * z_factor) + (to_float(height) / 2.0);
+    
+    let res = [to_int(px), to_int(py)];
+    return res;
+}
+
+fn to_float_safe(i) {
+    // Wrapper for intrinsic
+    return to_float(i);
+}

@@ -1,0 +1,10 @@
+program test_loop {
+    fn main() -> int {
+        let limit: int = 100;
+        let i: int = 0;
+        loop (i <= limit, 1000) {
+            i = i + 1;
+        }
+        return 0;
+    }
+}

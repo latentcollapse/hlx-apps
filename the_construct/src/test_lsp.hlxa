@@ -1,0 +1,12 @@
+program test_lsp {
+    fn main() {
+        // 1. Type Test: Int passed to Float param
+        let x = 10;
+        let s = sin(x); 
+
+        // 2. Type Test: Binary Op mismatch
+        let msg = "Value: " + x; 
+        
+        print(msg);
+    }
+}
