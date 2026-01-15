@@ -15,7 +15,6 @@ impl NodePalette {
             .map(|def| (def.name, def.category, def.description))
             .collect()
     }
-}
 
     pub fn show(&mut self, ui: &mut egui::Ui, flow: &mut crate::flow::Flow, selected_node: &mut Option<String>) {
         ui.heading("Node Palette");

@@ -27,7 +27,13 @@ impl Canvas {
     const NODE_ROUNDING: f32 = 5.0;
     const EDGE_THICKNESS: f32 = 2.0;
 
-    pub fn show(&mut self, ui: &mut egui::Ui, flow: &mut crate::flow::Flow, selected_node: &mut Option<String>) {
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        flow: &mut crate::flow::Flow,
+        selected_node: &mut Option<String>,
+        node_executions: &std::collections::HashMap<String, super::NodeExecution>,
+    ) {
         // Initialize zoom if needed
         if self.zoom == 0.0 {
             self.zoom = 1.0;
@@ -122,6 +128,7 @@ impl Canvas {
 
         for (node_id, type_name, pos) in nodes_to_draw {
             let is_selected = selected_node.as_ref() == Some(&node_id);
+            let execution_state = node_executions.get(&node_id);
             let screen_pos = to_screen(egui::Pos2::new(pos.x, pos.y));
 
             let node_rect = egui::Rect::from_min_size(
@@ -191,7 +198,7 @@ impl Canvas {
             }
 
             // Draw node
-            self.draw_node(&painter, node_rect, &type_name, is_selected);
+            self.draw_node(&painter, node_rect, &type_name, is_selected, execution_state);
         }
 
         // Cancel edge drawing on escape
@@ -254,17 +261,75 @@ impl Canvas {
         }
     }
 
-    fn draw_node(&self, painter: &egui::Painter, rect: egui::Rect, type_name: &str, is_selected: bool) {
-        // Node colors by type
-        let (bg_color, text_color) = match type_name {
-            "start" => (egui::Color32::from_rgb(50, 150, 50), egui::Color32::WHITE),
-            "http_request" => (egui::Color32::from_rgb(70, 130, 180), egui::Color32::WHITE),
-            "json_parse" => (egui::Color32::from_rgb(200, 120, 50), egui::Color32::WHITE),
-            "tensor_create" => (egui::Color32::from_rgb(150, 50, 150), egui::Color32::WHITE),
-            "tensor_op" => (egui::Color32::from_rgb(180, 50, 100), egui::Color32::WHITE),
-            "print" => (egui::Color32::from_rgb(100, 100, 100), egui::Color32::WHITE),
-            _ => (egui::Color32::DARK_GRAY, egui::Color32::WHITE),
+    fn draw_node(
+        &self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        type_name: &str,
+        is_selected: bool,
+        execution_state: Option<&super::NodeExecution>,
+    ) {
+        use super::ExecutionState;
+
+        // Base node colors by type
+        let base_color = match type_name {
+            "start" => egui::Color32::from_rgb(50, 150, 50),
+            "http_get" | "http_post" | "http_put" | "http_delete" | "http_request" => {
+                egui::Color32::from_rgb(70, 130, 180)
+            }
+            "json_parse" | "json_stringify" | "json_get" | "json_set" => {
+                egui::Color32::from_rgb(200, 120, 50)
+            }
+            "tensor_create" | "tensor_matmul" | "tensor_add" => {
+                egui::Color32::from_rgb(150, 50, 150)
+            }
+            "print" => egui::Color32::from_rgb(100, 100, 100),
+            _ if type_name.starts_with("string_") => egui::Color32::from_rgb(180, 140, 70),
+            _ if type_name.starts_with("array_") => egui::Color32::from_rgb(120, 180, 140),
+            _ if type_name.starts_with("object_") => egui::Color32::from_rgb(140, 120, 180),
+            _ if type_name.starts_with("file_") | type_name.starts_with("dir_") => {
+                egui::Color32::from_rgb(180, 100, 50)
+            }
+            _ if type_name.starts_with("math_") => egui::Color32::from_rgb(100, 150, 200),
+            _ if type_name.starts_with("to_") => egui::Color32::from_rgb(150, 150, 100),
+            _ => egui::Color32::DARK_GRAY,
         };
+
+        // Override color based on execution state
+        let (bg_color, border_color, border_width) = if let Some(exec) = execution_state {
+            match &exec.state {
+                ExecutionState::Pending => {
+                    // Dim the base color for pending
+                    let dimmed = egui::Color32::from_rgba_unmultiplied(
+                        base_color.r() / 2,
+                        base_color.g() / 2,
+                        base_color.b() / 2,
+                        255,
+                    );
+                    (dimmed, egui::Color32::GRAY, 1.0)
+                }
+                ExecutionState::Executing => {
+                    // Bright yellow border for executing
+                    (base_color, egui::Color32::YELLOW, 3.0)
+                }
+                ExecutionState::Completed => {
+                    // Green border for completed
+                    (base_color, egui::Color32::GREEN, 2.0)
+                }
+                ExecutionState::Error(_) => {
+                    // Red for error
+                    (
+                        egui::Color32::from_rgb(200, 50, 50),
+                        egui::Color32::RED,
+                        2.0,
+                    )
+                }
+            }
+        } else {
+            (base_color, egui::Color32::BLACK, 1.0)
+        };
+
+        let text_color = egui::Color32::WHITE;
 
         // Draw selection highlight
         if is_selected {
@@ -278,7 +343,11 @@ impl Canvas {
 
         // Draw node body
         painter.rect_filled(rect, Self::NODE_ROUNDING, bg_color);
-        painter.rect_stroke(rect, Self::NODE_ROUNDING, egui::Stroke::new(1.0, egui::Color32::BLACK));
+        painter.rect_stroke(
+            rect,
+            Self::NODE_ROUNDING,
+            egui::Stroke::new(border_width, border_color),
+        );
 
         // Draw type name
         let text_pos = rect.center() - egui::Vec2::new(0.0, 0.0);

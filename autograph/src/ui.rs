@@ -4,6 +4,7 @@
 
 use eframe::egui;
 use crate::flow::{Flow, Node, Edge, Position};
+use std::collections::HashMap;
 
 mod canvas;
 mod palette;
@@ -12,6 +13,23 @@ mod properties;
 use canvas::Canvas;
 use palette::NodePalette;
 use properties::PropertiesPanel;
+
+/// Execution state for a node
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExecutionState {
+    Pending,
+    Executing,
+    Completed,
+    Error(String),
+}
+
+/// Execution result for a node
+#[derive(Debug, Clone)]
+pub struct NodeExecution {
+    pub state: ExecutionState,
+    pub output: Option<String>,
+    pub duration_ms: Option<u64>,
+}
 
 /// Main Autograph application
 pub struct AutographApp {
@@ -38,6 +56,15 @@ pub struct AutographApp {
 
     /// Error messages
     error_message: Option<String>,
+
+    /// Execution state for each node
+    node_executions: HashMap<String, NodeExecution>,
+
+    /// Execution log entries
+    execution_log: Vec<String>,
+
+    /// Whether execution is in progress
+    executing: bool,
 }
 
 impl Default for AutographApp {
@@ -54,6 +81,9 @@ impl Default for AutographApp {
             flow_name: "untitled".to_string(),
             execution_result: None,
             error_message: None,
+            node_executions: HashMap::new(),
+            execution_log: Vec::new(),
+            executing: false,
         }
     }
 }
@@ -139,6 +169,29 @@ impl AutographApp {
         }
     }
 
+    /// Clear execution state
+    pub fn clear_execution(&mut self) {
+        self.node_executions.clear();
+        self.execution_log.clear();
+        self.executing = false;
+        self.execution_result = None;
+        self.error_message = None;
+    }
+
+    /// Mark all nodes as pending
+    fn mark_nodes_pending(&mut self) {
+        for node in &self.flow.nodes {
+            self.node_executions.insert(
+                node.id.clone(),
+                NodeExecution {
+                    state: ExecutionState::Pending,
+                    output: None,
+                    duration_ms: None,
+                },
+            );
+        }
+    }
+
     /// Execute flow with input
     pub fn run_flow(&mut self, input: serde_json::Value) {
         use hlx_compiler::hlxa::HlxaParser;
@@ -146,13 +199,27 @@ impl AutographApp {
         use hlx_compiler::lower::lower_to_crate;
         use hlx_runtime::config::RuntimeConfig;
         use hlx_runtime::execute_with_config;
+        use std::time::Instant;
+
+        // Clear previous execution
+        self.clear_execution();
+
+        // Mark all nodes as pending
+        self.mark_nodes_pending();
+
+        self.execution_log.push(format!("=== Starting execution of '{}' ===", self.flow_name));
+        self.execution_log.push(format!("Input: {}", serde_json::to_string(&input).unwrap_or("null".to_string())));
 
         // First compile
         self.compile_flow();
 
         if self.error_message.is_some() {
+            self.execution_log.push("❌ Compilation failed".to_string());
             return;
         }
+
+        self.execution_log.push("✓ Compilation successful".to_string());
+        self.executing = true;
 
         // Load and execute
         let path = format!("flows/{}.hlxa", self.flow_name);
@@ -161,42 +228,75 @@ impl AutographApp {
                 let parser = HlxaParser;
                 match parser.parse(&source) {
                     Ok(program) => {
+                        self.execution_log.push("✓ Parsed HLX source".to_string());
+
                         match lower_to_crate(&program) {
                             Ok(krate) => {
+                                self.execution_log.push("✓ Lowered to IR".to_string());
+                                self.execution_log.push("⚡ Executing workflow...".to_string());
+
                                 let mut config = RuntimeConfig::default();
                                 config.main_input = Some(input.to_string());
 
+                                let start = Instant::now();
                                 match execute_with_config(&krate, &config) {
                                     Ok(result) => {
+                                        let duration = start.elapsed();
+                                        self.execution_log.push(format!("✓ Execution completed in {}ms", duration.as_millis()));
+
+                                        // Mark all nodes as completed (simplified - we don't have per-node feedback yet)
+                                        for node in &self.flow.nodes {
+                                            if let Some(exec) = self.node_executions.get_mut(&node.id) {
+                                                exec.state = ExecutionState::Completed;
+                                            }
+                                        }
+
                                         match result.to_json() {
                                             Ok(json) => {
-                                                self.execution_result = Some(serde_json::to_string_pretty(&json).unwrap());
+                                                let result_str = serde_json::to_string_pretty(&json).unwrap();
+                                                self.execution_result = Some(result_str.clone());
+                                                self.execution_log.push(format!("Result: {}", result_str));
                                                 self.error_message = None;
                                             }
                                             Err(e) => {
                                                 self.error_message = Some(format!("JSON conversion error: {}", e));
+                                                self.execution_log.push(format!("❌ JSON conversion failed: {}", e));
                                             }
                                         }
                                     }
                                     Err(e) => {
                                         self.error_message = Some(format!("Runtime error: {}", e));
+                                        self.execution_log.push(format!("❌ Runtime error: {}", e));
+
+                                        // Mark all nodes as error
+                                        for node in &self.flow.nodes {
+                                            if let Some(exec) = self.node_executions.get_mut(&node.id) {
+                                                exec.state = ExecutionState::Error(e.to_string());
+                                            }
+                                        }
                                     }
                                 }
                             }
                             Err(e) => {
                                 self.error_message = Some(format!("Lowering error: {}", e));
+                                self.execution_log.push(format!("❌ Lowering error: {}", e));
                             }
                         }
                     }
                     Err(e) => {
                         self.error_message = Some(format!("Parse error: {}", e));
+                        self.execution_log.push(format!("❌ Parse error: {}", e));
                     }
                 }
             }
             Err(e) => {
                 self.error_message = Some(format!("Failed to read compiled flow: {}", e));
+                self.execution_log.push(format!("❌ Failed to read: {}", e));
             }
         }
+
+        self.executing = false;
+        self.execution_log.push("=== Execution finished ===".to_string());
     }
 
     /// Save flow to JSON
@@ -261,6 +361,13 @@ impl eframe::App for AutographApp {
                 if ui.button("New").clicked() {
                     self.flow = Flow { nodes: Vec::new(), edges: Vec::new() };
                     self.selected_node = None;
+                    self.clear_execution();
+                }
+
+                ui.separator();
+
+                if ui.button("Clear Execution").clicked() {
+                    self.clear_execution();
                 }
             });
         });
@@ -281,21 +388,50 @@ impl eframe::App for AutographApp {
         }
 
         // Bottom panel for results/errors
-        egui::TopBottomPanel::bottom("output").show(ctx, |ui| {
+        egui::TopBottomPanel::bottom("output").min_height(200.0).show(ctx, |ui| {
             ui.heading("Output");
+            ui.separator();
 
-            if let Some(error) = &self.error_message {
-                ui.colored_label(egui::Color32::RED, error);
-            }
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                // Execution log section
+                ui.collapsing("Execution Log", |ui| {
+                    if self.execution_log.is_empty() {
+                        ui.label("No execution yet. Click 'Run' to execute the workflow.");
+                    } else {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        for log_entry in &self.execution_log {
+                            if log_entry.starts_with("❌") {
+                                ui.colored_label(egui::Color32::RED, log_entry);
+                            } else if log_entry.starts_with("✓") {
+                                ui.colored_label(egui::Color32::GREEN, log_entry);
+                            } else if log_entry.starts_with("⚡") {
+                                ui.colored_label(egui::Color32::YELLOW, log_entry);
+                            } else {
+                                ui.label(log_entry);
+                            }
+                        }
+                    }
+                });
 
-            if let Some(result) = &self.execution_result {
-                ui.monospace(result);
-            }
+                ui.separator();
+
+                // Error section
+                if let Some(error) = &self.error_message {
+                    ui.colored_label(egui::Color32::RED, format!("Error: {}", error));
+                    ui.separator();
+                }
+
+                // Result section
+                if let Some(result) = &self.execution_result {
+                    ui.label("Result:");
+                    ui.monospace(result);
+                }
+            });
         });
 
         // Central canvas
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.canvas.show(ui, &mut self.flow, &mut self.selected_node);
+            self.canvas.show(ui, &mut self.flow, &mut self.selected_node, &self.node_executions);
         });
     }
 }
