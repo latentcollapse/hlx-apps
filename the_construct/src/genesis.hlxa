@@ -1,0 +1,67 @@
+program genesis {
+
+    fn pack_u32(val: int) -> Array<int> {
+        let v: int = val;
+        let b0: int = v % 256;
+        let v1: int = to_int(v / 256);
+        let b1: int = v1 % 256;
+        let v2: int = to_int(v1 / 256);
+        let b2: int = v2 % 256;
+        let v3: int = to_int(v2 / 256);
+        let b3: int = v3 % 256;
+        return [b0, b1, b2, b3];
+    }
+
+    fn main() -> int {
+        print("--- THE CONSTRUCT: GENESIS PHASE 2 (Raymarching) ---");
+        
+        let shader_path: String = "/home/matt/hlx-apps/the_construct/shaders/genesis.spv";
+        let width: int = 800;
+        let height: int = 600;
+        let pixel_count: int = width * height;
+
+        print("Allocating GPU Voxel Buffer (" + str(pixel_count) + " atoms)...");
+        let buffer: Handle = alloc_tensor([pixel_count], "i32");
+        
+        // Open the Reality Bridge (FFPlay streamer)
+        // This launches a window that accepts raw pixel data from our GPU.
+        let streamer: int = pipe_open("ffplay -f rawvideo -pixel_format rgba -video_size 800x600 -i -");
+        if (streamer == 0) {
+            print("Error: Could not open Reality Bridge (ffplay). Check installation.");
+            return 1;
+        }
+
+        print("Engine loop engaged. Reality is rendering...");
+
+        let start_time: int = now();
+        let frame: int = 0;
+        let max_frames: int = 600; // Render ~10 seconds at 60fps
+
+        loop (frame < max_frames, 1000) {
+            let current_time: int = now() - start_time;
+            
+            // 1. Pack Constants (Time, Width, Height)
+            let pc_time: Array<int> = pack_u32(current_time);
+            let pc_w: Array<int> = pack_u32(width);
+            let pc_h: Array<int> = pack_u32(height);
+            let pc: Array<int> = arr_concat(pc_time, pc_w);
+            let pc: Array<int> = arr_concat(pc, pc_h);
+            
+            // 2. Dispatch the GPU Raymarcher
+            let groups_x: int = to_int((width + 15) / 16);
+            let groups_y: int = to_int((height + 15) / 16);
+            gpu_dispatch(shader_path, [buffer], pc, groups_x, groups_y, 1);
+            
+            // 3. Blit to Screen
+            pipe_write(streamer, buffer);
+            
+            frame = frame + 1;
+        }
+
+        print("Engine cooling down...");
+        pipe_close(streamer);
+        print("Done.");
+        
+        return 0;
+    }
+}

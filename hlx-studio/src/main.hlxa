@@ -346,11 +346,97 @@ program hlx_studio {
 
         }
 
-    
+
+
+        // --- Keyboard Input Mapping ---
+
+        fn key_to_char(key: int, shift: int) -> string {
+            // Lowercase letters a-z (97-122)
+            if (key >= 97) { if (key <= 122) {
+                if (shift == 1) {
+                    return chr(key - 32);  // Uppercase (A-Z)
+                } else {
+                    return chr(key);  // Lowercase
+                }
+            }}
+
+            // Number row with shift symbols
+            if (key == 49) {  // 1 or !
+                if (shift == 1) { return chr(33); } else { return chr(49); }
+            }
+            if (key == 50) {  // 2 or @
+                if (shift == 1) { return chr(64); } else { return chr(50); }
+            }
+            if (key == 51) {  // 3 or #
+                if (shift == 1) { return chr(35); } else { return chr(51); }
+            }
+            if (key == 52) {  // 4 or $
+                if (shift == 1) { return chr(36); } else { return chr(52); }
+            }
+            if (key == 53) {  // 5 or %
+                if (shift == 1) { return chr(37); } else { return chr(53); }
+            }
+            if (key == 54) {  // 6 or ^
+                if (shift == 1) { return chr(94); } else { return chr(54); }
+            }
+            if (key == 55) {  // 7 or &
+                if (shift == 1) { return chr(38); } else { return chr(55); }
+            }
+            if (key == 56) {  // 8 or *
+                if (shift == 1) { return chr(42); } else { return chr(56); }
+            }
+            if (key == 57) {  // 9 or (
+                if (shift == 1) { return chr(40); } else { return chr(57); }
+            }
+            if (key == 48) {  // 0 or )
+                if (shift == 1) { return chr(41); } else { return chr(48); }
+            }
+
+            // Programming symbols
+            if (key == 59) {  // ; or :
+                if (shift == 1) { return chr(58); } else { return chr(59); }
+            }
+            if (key == 61) {  // = or +
+                if (shift == 1) { return chr(43); } else { return chr(61); }
+            }
+            if (key == 91) {  // [ or {
+                if (shift == 1) { return chr(123); } else { return chr(91); }
+            }
+            if (key == 93) {  // ] or }
+                if (shift == 1) { return chr(125); } else { return chr(93); }
+            }
+            if (key == 92) {  // \ or |
+                if (shift == 1) { return chr(124); } else { return chr(92); }
+            }
+            if (key == 39) {  // ' or "
+                if (shift == 1) { return chr(34); } else { return chr(39); }
+            }
+            if (key == 44) {  // , or <
+                if (shift == 1) { return chr(60); } else { return chr(44); }
+            }
+            if (key == 46) {  // . or >
+                if (shift == 1) { return chr(62); } else { return chr(46); }
+            }
+            if (key == 47) {  // / or ?
+                if (shift == 1) { return chr(63); } else { return chr(47); }
+            }
+            if (key == 96) {  // ` or ~
+                if (shift == 1) { return chr(126); } else { return chr(96); }
+            }
+            if (key == 45) {  // - or _
+                if (shift == 1) { return chr(95); } else { return chr(45); }
+            }
+
+            // Space and Tab
+            if (key == 32) { return " "; }
+            if (key == 9) { return "    "; }  // Tab = 4 spaces
+
+            return "";  // Unmapped key
+        }
 
         // --- Main Loop ---
 
-    
+
 
         fn main() -> int {
 
@@ -460,11 +546,13 @@ program hlx_studio {
 
     
 
-            loop (running == 1, 1000000) {
+            loop (running == 1, 1000001) {
 
-                // Poll Events
+                // Poll Events - drain all pending events
 
-                loop (sdl_poll(event_buf) != 0, 100) {
+                let has_event: int = sdl_poll(event_buf);
+
+                loop (has_event != 0, 100) {
 
                     let type: int = event_buf[0];
 
@@ -472,17 +560,23 @@ program hlx_studio {
 
                         running = 0;
 
+                        has_event = 0; // Break out of event loop
+
                     }
 
-                    
+
 
                     if (type == 768) { // SDL_KEYDOWN
 
                         // Extract sym (high 32 bits of 3rd 64-bit slot)
-
                         let key: int = event_buf[2] / 4294967296;
 
-                        
+                        // Extract modifier keys from event_buf[3]
+                        let mod_raw: int = event_buf[3] % 65536;      // Low 16 bits
+                        let shift_pressed: int = mod_raw % 8 / 2;     // KMOD_SHIFT (bit 1 or 0)
+                        let ctrl_pressed: int = mod_raw % 256 / 64;   // KMOD_CTRL (bit 6 or 7)
+
+
 
                         if (key == 1073741906) { // UP
 
@@ -556,34 +650,13 @@ program hlx_studio {
 
                         
 
-                        // Basic Typing (A-Z, 0-9, Space) hack for KEYDOWN
-
-                        // (Since we don't have SDL_TEXTINPUT fully mapped with string payload extraction yet)
-
-                        // ASCII Mapping:
-
-                        // Space: 32
-
-                        if (key == 32) {
-
-                            lines[cursor_row] = insert_string(lines[cursor_row], cursor_col, " ");
-
-                            cursor_col = cursor_col + 1;
-
-                        }
-
-                        // 0-9 (48-57)
-
-                        if (key >= 48) { if (key <= 57) {
-
-                             // We need char_to_string, but we don't have it.
-
-                             // Hack: Map manually for MVP or use TEXTINPUT later.
-
-                             // For now, let's just support Space and Backspace to prove read/write.
-
-                             // Adding full ASCII map here is tedious without char_to_string intrinsic.
-
+                        // Full keyboard typing support with key_to_char()
+                        if (key >= 32) { if (key <= 126) {
+                            let ch: string = key_to_char(key, shift_pressed);
+                            if (len(ch) > 0) {
+                                lines[cursor_row] = insert_string(lines[cursor_row], cursor_col, ch);
+                                cursor_col = cursor_col + len(ch);
+                            }
                         }}
 
                     }
@@ -593,6 +666,13 @@ program hlx_studio {
                     // TODO: Implement SDL_TEXTINPUT handling for full typing support
 
                     // checking for event type 771
+
+                    // Poll next event (and re-check running flag)
+                    if (running == 0) {
+                        has_event = 0; // Exit event loop
+                    } else {
+                        has_event = sdl_poll(event_buf);
+                    }
 
                 }
 

@@ -1,10 +1,12 @@
 mod flow;
+mod ui;
 
 use axum::{
     extract::{Path, State},
     routing::post,
     Json, Router,
 };
+use clap::{Parser, Subcommand};
 use serde_json::{Value as JsonValue};
 use std::sync::Arc;
 use std::path::PathBuf;
@@ -14,29 +16,71 @@ use hlx_compiler::{HlxaParser, parser::Parser as ParseTrait, lower};
 use hlx_runtime::{execute_with_config, RuntimeConfig};
 use flow::Flow;
 
+#[derive(Parser)]
+#[command(name = "autograph")]
+#[command(about = "Visual workflow automation powered by HLX", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Launch the visual editor (default)
+    Ui,
+    /// Start the REST API server
+    Server {
+        /// Port to listen on
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+    },
+}
+
 struct AppState {
     flows_dir: PathBuf,
 }
 
-#[tokio::main]
-async fn main() {
+fn main() {
     tracing_subscriber::fmt::init();
 
-    let state = Arc::new(AppState {
-        flows_dir: PathBuf::from("../flows"),
-    });
-
     // Ensure flows dir exists
-    std::fs::create_dir_all(&state.flows_dir).ok();
+    std::fs::create_dir_all("flows").ok();
+
+    let cli = Cli::parse();
+
+    let result = match cli.command {
+        Some(Commands::Server { port }) => {
+            // Run REST API server
+            run_server(port).map_err(|e| eprintln!("Server error: {}", e))
+        }
+        Some(Commands::Ui) | None => {
+            // Run native UI (default)
+            ui::run().map_err(|e| eprintln!("UI error: {}", e))
+        }
+    };
+
+    if let Err(_) = result {
+        std::process::exit(1);
+    }
+}
+
+#[tokio::main]
+async fn run_server(port: u16) -> anyhow::Result<()> {
+    let state = Arc::new(AppState {
+        flows_dir: PathBuf::from("flows"),
+    });
 
     let app = Router::new()
         .route("/run/:flow_name", post(run_flow))
         .route("/deploy/:flow_name", post(deploy_flow))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    info!("Autograph server listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    let addr = format!("0.0.0.0:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    info!("Autograph server listening on {}", listener.local_addr()?);
+    axum::serve(listener, app).await?;
+
+    Ok(())
 }
 
 async fn deploy_flow(
@@ -45,17 +89,17 @@ async fn deploy_flow(
     Json(flow): Json<Flow>,
 ) -> Json<JsonValue> {
     info!("Deploying flow: {}", flow_name);
-    
+
     let source = flow.compile_to_hlx();
     let flow_path = state.flows_dir.join(format!("{}.hlxa", flow_name));
-    
+
     match std::fs::write(&flow_path, &source) {
         Ok(_) => {
             info!("Flow saved to {}", flow_path.display());
             Json(serde_json::json!({
-                "status": "success", 
+                "status": "success",
                 "message": "Flow compiled and deployed",
-                "source": source 
+                "source": source
             }))
         },
         Err(e) => {
