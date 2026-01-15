@@ -5,102 +5,58 @@ use crate::flow::Position;
 
 /// Node palette state
 #[derive(Default)]
-pub struct NodePalette {
-    /// Available node types
-    node_types: Vec<NodeType>,
-}
-
-struct NodeType {
-    name: String,
-    description: String,
-    category: String,
-}
+pub struct NodePalette {}
 
 impl NodePalette {
-    pub fn show(&mut self, ui: &mut egui::Ui, flow: &mut crate::flow::Flow, selected_node: &mut Option<String>) {
-        // Initialize node types if empty
-        if self.node_types.is_empty() {
-            self.node_types = vec![
-                NodeType {
-                    name: "start".to_string(),
-                    description: "Entry point for the workflow".to_string(),
-                    category: "Control".to_string(),
-                },
-                NodeType {
-                    name: "print".to_string(),
-                    description: "Print value to console".to_string(),
-                    category: "Debug".to_string(),
-                },
-                NodeType {
-                    name: "http_request".to_string(),
-                    description: "Make HTTP request".to_string(),
-                    category: "HTTP".to_string(),
-                },
-                NodeType {
-                    name: "json_parse".to_string(),
-                    description: "Parse JSON string".to_string(),
-                    category: "Data".to_string(),
-                },
-                NodeType {
-                    name: "tensor_create".to_string(),
-                    description: "Create a new tensor".to_string(),
-                    category: "ML/GPU".to_string(),
-                },
-                NodeType {
-                    name: "tensor_op".to_string(),
-                    description: "Tensor operations (matmul, add)".to_string(),
-                    category: "ML/GPU".to_string(),
-                },
-            ];
-        }
+    fn get_node_defs(&self) -> Vec<(&'static str, &'static str, &'static str)> {
+        // Get all nodes from registry
+        crate::nodes::all_nodes()
+            .into_iter()
+            .map(|def| (def.name, def.category, def.description))
+            .collect()
+    }
+}
 
+    pub fn show(&mut self, ui: &mut egui::Ui, flow: &mut crate::flow::Flow, selected_node: &mut Option<String>) {
         ui.heading("Node Palette");
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            // Group by category with stable ordering
+            // Group nodes by category with stable ordering
             use std::collections::BTreeMap;
             let mut categories = BTreeMap::new();
-            for node_type in &self.node_types {
+            for (name, category, description) in self.get_node_defs() {
                 categories
-                    .entry(&node_type.category)
+                    .entry(category)
                     .or_insert_with(Vec::new)
-                    .push(node_type);
+                    .push((name, description));
             }
 
             for (category, nodes) in categories {
                 ui.collapsing(category, |ui| {
-                    for node_type in nodes {
-                        let button = egui::Button::new(&node_type.name)
+                    for (name, description) in nodes {
+                        let button = egui::Button::new(name)
                             .min_size(egui::Vec2::new(ui.available_width(), 30.0));
 
                         let response = ui.add(button);
 
                         if response.clicked() {
-                            // Add node to center of canvas
+                            // Add node to canvas with default config
                             use crate::flow::Node;
 
                             let node_count = flow.nodes.len();
                             let id = format!("node_{}", node_count);
-                            let config = match node_type.name.as_str() {
-                                "http_request" => serde_json::json!({
-                                    "method": "GET",
-                                    "url": "https://example.com"
-                                }),
-                                "tensor_create" => serde_json::json!({
-                                    "rows": 2,
-                                    "cols": 2,
-                                    "values": [1.0, 0.0, 0.0, 1.0]
-                                }),
-                                "tensor_op" => serde_json::json!({
-                                    "op": "dot"
-                                }),
-                                _ => serde_json::json!({}),
-                            };
+
+                            // Get default config from node registry
+                            let config = crate::nodes::all_nodes()
+                                .into_iter()
+                                .find(|def| def.name == name)
+                                .map(|def| (def.default_config)())
+                                .unwrap_or(serde_json::json!({}));
 
                             flow.nodes.push(Node {
                                 id: id.clone(),
-                                type_name: node_type.name.clone(),
+                                type_name: name.to_string(),
                                 config,
                                 position: Some(Position {
                                     x: 300.0 + (node_count as f32 * 20.0),
@@ -111,7 +67,7 @@ impl NodePalette {
                             *selected_node = Some(id);
                         }
 
-                        response.on_hover_text(&node_type.description);
+                        response.on_hover_text(description);
                     }
                 });
             }
