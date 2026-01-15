@@ -13,7 +13,13 @@ pub struct PropertiesPanel {
 }
 
 impl PropertiesPanel {
-    pub fn show(&mut self, ui: &mut egui::Ui, flow: &mut crate::flow::Flow, selected_node: &mut Option<String>) -> bool {
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        flow: &mut crate::flow::Flow,
+        selected_node: &mut Option<String>,
+        node_executions: &std::collections::HashMap<String, super::NodeExecution>,
+    ) -> bool {
         let mut delete_requested = false;
 
         ui.heading("Properties");
@@ -71,6 +77,47 @@ impl PropertiesPanel {
 
                 ui.separator();
 
+                // Execution Data Section
+                if let Some(exec) = node_executions.get(&node.id) {
+                    ui.heading("Execution Data");
+
+                    match &exec.state {
+                        super::ExecutionState::Pending => {
+                            ui.colored_label(egui::Color32::GRAY, "⏳ Pending");
+                        }
+                        super::ExecutionState::Executing => {
+                            ui.colored_label(egui::Color32::YELLOW, "⚡ Executing...");
+                        }
+                        super::ExecutionState::Completed => {
+                            ui.colored_label(egui::Color32::GREEN, "✓ Completed");
+
+                            if let Some(duration) = exec.duration_ms {
+                                ui.label(format!("Duration: {}ms", duration));
+                            }
+
+                            if let Some(output) = &exec.output {
+                                ui.separator();
+                                ui.label("Output:");
+                                ui.add(
+                                    egui::TextEdit::multiline(&mut output.as_str())
+                                        .desired_width(ui.available_width())
+                                        .desired_rows(10)
+                                        .code_editor(),
+                                );
+                            } else {
+                                ui.label("Output data not captured (requires runtime hooks)");
+                                ui.label("💡 Full per-node inspection coming in Phase 4!");
+                            }
+                        }
+                        super::ExecutionState::Error(err) => {
+                            ui.colored_label(egui::Color32::RED, "❌ Error");
+                            ui.colored_label(egui::Color32::RED, err);
+                        }
+                    }
+
+                    ui.separator();
+                }
+
                 if ui.button("Delete Node").clicked() {
                     delete_requested = true;
                 }
@@ -79,17 +126,32 @@ impl PropertiesPanel {
                 ui.separator();
                 ui.label("Help:");
                 match node.type_name.as_str() {
-                    "http_request" => {
-                        ui.label("Config: { \"method\": \"GET\", \"url\": \"...\" }");
+                    "http_request" | "http_get" | "http_post" | "http_put" | "http_delete" => {
+                        ui.label("HTTP request node");
+                    }
+                    "json_parse" | "json_stringify" => {
+                        ui.label("JSON parsing/serialization");
                     }
                     "tensor_create" => {
                         ui.label("Config: { \"rows\": N, \"cols\": M, \"values\": [...] }");
                     }
-                    "tensor_op" => {
-                        ui.label("Config: { \"op\": \"dot\" | \"add\" }");
+                    "tensor_matmul" | "tensor_add" => {
+                        ui.label("Tensor operation (connects to 2 tensor inputs)");
                     }
-                    "json_parse" | "print" | "start" => {
-                        ui.label("Config: {}");
+                    "print" | "start" => {
+                        ui.label("Pass-through node");
+                    }
+                    _ if node.type_name.starts_with("string_") => {
+                        ui.label("String manipulation");
+                    }
+                    _ if node.type_name.starts_with("array_") => {
+                        ui.label("Array operation");
+                    }
+                    _ if node.type_name.starts_with("file_") => {
+                        ui.label("File I/O operation");
+                    }
+                    _ if node.type_name.starts_with("math_") => {
+                        ui.label("Math operation");
                     }
                     _ => {}
                 }

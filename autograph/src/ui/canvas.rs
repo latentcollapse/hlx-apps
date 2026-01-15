@@ -122,11 +122,11 @@ impl Canvas {
         let mut nodes_to_draw = Vec::new();
         for node in &flow.nodes {
             if let Some(pos) = &node.position {
-                nodes_to_draw.push((node.id.clone(), node.type_name.clone(), *pos));
+                nodes_to_draw.push((node.id.clone(), node.type_name.clone(), *pos, node.breakpoint));
             }
         }
 
-        for (node_id, type_name, pos) in nodes_to_draw {
+        for (node_id, type_name, pos, has_breakpoint) in nodes_to_draw {
             let is_selected = selected_node.as_ref() == Some(&node_id);
             let execution_state = node_executions.get(&node_id);
             let screen_pos = to_screen(egui::Pos2::new(pos.x, pos.y));
@@ -167,9 +167,16 @@ impl Canvas {
                 }
             }
 
-            // Handle selection
+            // Handle selection (left click)
             if node_response.clicked() {
                 *selected_node = Some(node_id.clone());
+            }
+
+            // Handle breakpoint toggle (right click)
+            if node_response.secondary_clicked() {
+                if let Some(node) = flow.nodes.iter_mut().find(|n| n.id == node_id) {
+                    node.breakpoint = !node.breakpoint;
+                }
             }
 
             // Handle edge creation (ctrl+click)
@@ -198,7 +205,7 @@ impl Canvas {
             }
 
             // Draw node
-            self.draw_node(&painter, node_rect, &type_name, is_selected, execution_state);
+            self.draw_node(&painter, node_rect, &type_name, is_selected, execution_state, has_breakpoint);
         }
 
         // Cancel edge drawing on escape
@@ -231,7 +238,7 @@ impl Canvas {
         }
 
         // Instructions
-        ui.label("Drag nodes to move | Ctrl+Click to connect | Delete key to remove | Shift+Drag to pan");
+        ui.label("Drag nodes to move | Ctrl+Click to connect | Right-Click for breakpoint | Delete key to remove | Shift+Drag to pan");
     }
 
     fn draw_grid(&self, painter: &egui::Painter, rect: egui::Rect, zoom: f32, offset: egui::Vec2) {
@@ -268,6 +275,7 @@ impl Canvas {
         type_name: &str,
         is_selected: bool,
         execution_state: Option<&super::NodeExecution>,
+        has_breakpoint: bool,
     ) {
         use super::ExecutionState;
 
@@ -331,6 +339,17 @@ impl Canvas {
 
         let text_color = egui::Color32::WHITE;
 
+        // Draw breakpoint indicator (red circle in top-left corner)
+        if has_breakpoint {
+            let breakpoint_center = rect.min + egui::Vec2::new(8.0, 8.0);
+            painter.circle_filled(breakpoint_center, 6.0, egui::Color32::RED);
+            painter.circle_stroke(
+                breakpoint_center,
+                6.0,
+                egui::Stroke::new(1.0, egui::Color32::WHITE),
+            );
+        }
+
         // Draw selection highlight
         if is_selected {
             painter.rect(
@@ -350,7 +369,7 @@ impl Canvas {
         );
 
         // Draw type name
-        let text_pos = rect.center() - egui::Vec2::new(0.0, 0.0);
+        let text_pos = rect.center() - egui::Vec2::new(0.0, 5.0);
         painter.text(
             text_pos,
             egui::Align2::CENTER_CENTER,
@@ -358,6 +377,20 @@ impl Canvas {
             egui::FontId::proportional(14.0),
             text_color,
         );
+
+        // Draw execution timing if available
+        if let Some(exec) = execution_state {
+            if let Some(duration) = exec.duration_ms {
+                let timing_pos = rect.center() + egui::Vec2::new(0.0, 15.0);
+                painter.text(
+                    timing_pos,
+                    egui::Align2::CENTER_CENTER,
+                    format!("{}ms", duration),
+                    egui::FontId::proportional(10.0),
+                    egui::Color32::from_rgba_unmultiplied(255, 255, 255, 180),
+                );
+            }
+        }
     }
 
     fn draw_edge(&self, painter: &egui::Painter, start: egui::Pos2, end: egui::Pos2, color: egui::Color32) {

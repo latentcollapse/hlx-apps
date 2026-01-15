@@ -65,6 +65,9 @@ pub struct AutographApp {
 
     /// Whether execution is in progress
     executing: bool,
+
+    /// Node being inspected (for data view)
+    inspected_node: Option<String>,
 }
 
 impl Default for AutographApp {
@@ -84,6 +87,7 @@ impl Default for AutographApp {
             node_executions: HashMap::new(),
             execution_log: Vec::new(),
             executing: false,
+            inspected_node: None,
         }
     }
 }
@@ -118,6 +122,7 @@ impl AutographApp {
             type_name,
             config,
             position: Some(position),
+            breakpoint: false,
         });
 
         self.selected_node = Some(id);
@@ -379,8 +384,13 @@ impl eframe::App for AutographApp {
 
         // Properties panel (right side)
         let mut delete_requested = false;
-        egui::SidePanel::right("properties").min_width(250.0).show(ctx, |ui| {
-            delete_requested = self.properties.show(ui, &mut self.flow, &mut self.selected_node);
+        egui::SidePanel::right("properties").min_width(300.0).show(ctx, |ui| {
+            delete_requested = self.properties.show(
+                ui,
+                &mut self.flow,
+                &mut self.selected_node,
+                &self.node_executions,
+            );
         });
 
         if delete_requested {

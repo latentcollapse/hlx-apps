@@ -61,6 +61,7 @@ impl NodePalette {
                                     x: 300.0 + (node_count as f32 * 20.0),
                                     y: 200.0 + (node_count as f32 * 20.0),
                                 }),
+                                breakpoint: false,
                             });
 
                             *selected_node = Some(id);

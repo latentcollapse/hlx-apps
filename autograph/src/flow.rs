@@ -12,6 +12,8 @@ pub struct Node {
     pub type_name: String,
     pub config: serde_json::Value,
     pub position: Option<Position>, // For UI only
+    #[serde(default)]
+    pub breakpoint: bool, // For debugging
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
