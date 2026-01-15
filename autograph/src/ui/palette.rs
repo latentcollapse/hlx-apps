@@ -58,8 +58,9 @@ impl NodePalette {
         ui.separator();
 
         egui::ScrollArea::vertical().show(ui, |ui| {
-            // Group by category
-            let mut categories = std::collections::HashMap::new();
+            // Group by category with stable ordering
+            use std::collections::BTreeMap;
+            let mut categories = BTreeMap::new();
             for node_type in &self.node_types {
                 categories
                     .entry(&node_type.category)
