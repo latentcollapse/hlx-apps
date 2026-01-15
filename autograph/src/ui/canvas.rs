@@ -27,6 +27,16 @@ impl Canvas {
     const NODE_ROUNDING: f32 = 5.0;
     const EDGE_THICKNESS: f32 = 2.0;
 
+    /// Get current pan offset for minimap
+    pub fn offset(&self) -> egui::Vec2 {
+        -self.pan_offset  // Negative because pan_offset moves the view
+    }
+
+    /// Get current zoom level for minimap
+    pub fn zoom(&self) -> f32 {
+        self.zoom
+    }
+
     pub fn show(
         &mut self,
         ui: &mut egui::Ui,

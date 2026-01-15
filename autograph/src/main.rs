@@ -1,6 +1,7 @@
 mod flow;
 mod ui;
 mod nodes;
+mod templates;
 
 use axum::{
     extract::{Path, State},
